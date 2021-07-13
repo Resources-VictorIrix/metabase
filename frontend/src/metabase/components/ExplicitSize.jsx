@@ -6,6 +6,11 @@ import ResizeObserver from "resize-observer-polyfill";
 
 import cx from "classnames";
 import _ from "underscore";
+import { isCypressActive } from "metabase/env";
+
+// After adding throttling for resize re-renders, our Cypress tests became flaky
+// due to queried DOM elements are getting detached after re-renders
+const throttleDuration = isCypressActive ? 0 : 500;
 
 export default ({ selector, wrapped } = {}) => ComposedComponent =>
   class extends Component {
@@ -100,7 +105,7 @@ export default ({ selector, wrapped } = {}) => ComposedComponent =>
           this.setState({ width, height });
         }
       }
-    }, 500);
+    }, throttleDuration);
 
     render() {
       if (wrapped) {

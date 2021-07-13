@@ -52,9 +52,7 @@ export type FormFieldDefinition = {
 export type FormDefinition = {
   fields:
     | ((values: FormValues) => FormFieldDefinition[])
-    // $FlowFixMe
     | FormFieldDefinition[],
-  // $FlowFixMe
   initial?: FormValues | (() => FormValues),
   normalize?: (values: FormValues) => FormValues,
   validate?: (values: FormValues, props: FormProps) => FormErrors,
@@ -229,6 +227,11 @@ export default class Form extends React.Component {
     onSubmit: PropTypes.func.isRequired,
     initialValues: PropTypes.object,
     formName: PropTypes.string,
+    overwriteOnInitialValuesChange: PropTypes.bool,
+  };
+
+  static defaultProps = {
+    overwriteOnInitialValuesChange: false,
   };
 
   static childContextTypes = {
@@ -252,7 +255,6 @@ export default class Form extends React.Component {
 
   _registerFormField = (field: FormFieldDefinition) => {
     if (!_.isEqual(this.state.inlineFields[field.name], field)) {
-      // console.log("_registerFormField", field.name);
       this.setState(prevState =>
         assocIn(prevState, ["inlineFields", field.name], field),
       );
@@ -261,7 +263,6 @@ export default class Form extends React.Component {
 
   _unregisterFormField = (field: FormFieldDefinition) => {
     if (this.state.inlineFields[field.name]) {
-      // console.log("_unregisterFormField", field.name);
       // this.setState(prevState =>
       //   dissocIn(prevState, ["inlineFields", field.name]),
       // );
@@ -333,14 +334,14 @@ export default class Form extends React.Component {
 
   render() {
     // eslint-disable-next-line
-    const { formName } = this.props;
+    const { formName, overwriteOnInitialValuesChange } = this.props;
     const formObject = this._getFormObject();
     const initialValues = this._getInitialValues();
     const fieldNames = this._getFieldNames();
     return (
       <ReduxFormComponent
         {...this.props}
-        overwriteOnInitialValuesChange={false}
+        overwriteOnInitialValuesChange={overwriteOnInitialValuesChange}
         formObject={formObject}
         // redux-form props:
         form={formName}

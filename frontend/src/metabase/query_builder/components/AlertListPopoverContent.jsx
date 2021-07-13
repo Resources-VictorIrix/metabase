@@ -79,6 +79,7 @@ export default class AlertListPopoverContent extends Component {
         <ul>
           {Object.values(sortedQuestionAlerts).map(alert => (
             <AlertListItem
+              key={alert.id}
               alert={alert}
               setMenuFreeze={setMenuFreeze}
               closeMenu={closeMenu}
@@ -285,7 +286,6 @@ export class AlertScheduleText extends Component {
 
       return `${verbose ? "daily at " : "Daily, "} ${hour} ${amPm}`;
     } else if (scheduleType === "weekly") {
-      console.log(schedule);
       const hourOfDay = schedule.schedule_hour;
       const day = _.find(
         DAY_OF_WEEK_OPTIONS,

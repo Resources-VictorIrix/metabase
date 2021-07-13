@@ -2,8 +2,8 @@ import {
   restore,
   popover,
   showDashboardCardActions,
-} from "__support__/cypress";
-import { SAMPLE_DATASET } from "__support__/cypress_sample_dataset";
+} from "__support__/e2e/cypress";
+import { SAMPLE_DATASET } from "__support__/e2e/cypress_sample_dataset";
 
 const { PEOPLE, PRODUCTS, PRODUCTS_ID } = SAMPLE_DATASET;
 
@@ -227,7 +227,7 @@ describe("scenarios > dashboard > chained filter", () => {
       cy.findByText("Anchorage").click();
       cy.findByText("Add filter").click();
     });
-    cy.get(".y-label").contains("Count");
+    cy.get(".y-label").contains("count");
 
     // Then we make sure it works in pseudo-embedded mode.
     cy.visit(`/embed/dashboard/${DASHBOARD_JWT_TOKEN}`);
@@ -244,7 +244,7 @@ describe("scenarios > dashboard > chained filter", () => {
       cy.findByText("Add filter").click();
     });
 
-    cy.get(".y-label").contains("Count");
+    cy.get(".y-label").contains("count");
     cy.findByText("There was a problem displaying this chart.").should(
       "not.exist",
     );

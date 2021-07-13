@@ -25,6 +25,7 @@ const colors = {
   white: "#FFFFFF",
   black: "#2E353B",
   success: "#84BB4C",
+  danger: "#ED6E6E",
   error: "#ED6E6E",
   warning: "#F9CF48",
   "text-dark": "#4C5773",
@@ -126,7 +127,6 @@ function syncDeprecatedColorFamilies() {
 }
 
 export const getRandomColor = (family: ColorFamily): ColorString => {
-  // $FlowFixMe: Object.values doesn't preserve the type :-/
   const colors: ColorString[] = Object.values(family);
   return colors[Math.floor(Math.random() * colors.length)];
 };

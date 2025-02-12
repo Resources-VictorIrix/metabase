@@ -1,36 +1,19 @@
 name: Driver Tests
 
 on:
-  push:
-    branches:
-      - 'master'
-      - 'release-**'
-  pull_request:
-    types: [opened, synchronize, reopened, ready_for_review]
+  workflow_call:
+    inputs:
+      skip:
+        type: boolean
+        default: false
 
 concurrency:
-  group: ${{ github.workflow }}-${{ github.head_ref && github.ref || github.run_id }}
+  group: ${{ github.workflow }}-${{ github.head_ref && github.ref || github.run_id }}-drivers
   cancel-in-progress: true
 
 jobs:
-  files-changed:
-    name: Check which files changed
-    runs-on: ubuntu-22.04
-    timeout-minutes: 3
-    outputs:
-      backend_all: ${{ steps.changes.outputs.backend_all }}
-    steps:
-      - uses: actions/checkout@v4
-      - name: Test which files changed
-        uses: dorny/paths-filter@v3.0.0
-        id: changes
-        with:
-          token: ${{ github.token }}
-          filters: .github/file-paths.yaml
-
   be-tests-h2:
-    needs: files-changed
-    if: github.event.pull_request.draft == false && needs.files-changed.outputs.backend_all == 'true'
+    if: ${{ !inputs.skip }}
     runs-on: ubuntu-22.04
     timeout-minutes: 60
     env:
@@ -57,10 +40,9 @@ jobs:
         trunk-api-token: ${{ secrets.TRUNK_API_TOKEN }}
 
   be-tests-athena-ee:
-    needs: files-changed
-    if: github.event.pull_request.draft == false && needs.files-changed.outputs.backend_all == 'true'
+    if: ${{ !inputs.skip }}
     runs-on: ubuntu-22.04
-    timeout-minutes: 90
+    timeout-minutes: 60
     env:
       CI: 'true'
       DRIVERS: athena
@@ -93,10 +75,9 @@ jobs:
         trunk-api-token: ${{ secrets.TRUNK_API_TOKEN }}
 
   be-tests-bigquery-cloud-sdk-ee:
-    needs: files-changed
-    if: github.event.pull_request.draft == false && needs.files-changed.outputs.backend_all == 'true'
+    if: ${{ !inputs.skip }}
     runs-on: ubuntu-22.04
-    timeout-minutes: 90
+    timeout-minutes: 60
     env:
       CI: 'true'
       DRIVERS: bigquery-cloud-sdk
@@ -128,10 +109,9 @@ jobs:
         trunk-api-token: ${{ secrets.TRUNK_API_TOKEN }}
 
   be-tests-druid-ee:
-    needs: files-changed
-    if: github.event.pull_request.draft == false && needs.files-changed.outputs.backend_all == 'true'
+    if: ${{ !inputs.skip }}
     runs-on: ubuntu-22.04
-    timeout-minutes: 90
+    timeout-minutes: 60
     env:
       CI: 'true'
       DRIVERS: druid
@@ -164,10 +144,9 @@ jobs:
         trunk-api-token: ${{ secrets.TRUNK_API_TOKEN }}
 
   be-tests-databricks-ee:
-    needs: files-changed
-    if: github.event.pull_request.draft == false && needs.files-changed.outputs.backend_all == 'true'
+    if: ${{ !inputs.skip }}
     runs-on: ubuntu-22.04
-    timeout-minutes: 90
+    timeout-minutes: 60
     env:
       CI: 'true'
       DRIVERS: databricks
@@ -199,10 +178,9 @@ jobs:
         trunk-api-token: ${{ secrets.TRUNK_API_TOKEN }}
 
   be-tests-druid-jdbc-ee:
-    needs: files-changed
-    if: github.event.pull_request.draft == false && needs.files-changed.outputs.backend_all == 'true'
+    if: ${{ !inputs.skip }}
     runs-on: ubuntu-22.04
-    timeout-minutes: 90
+    timeout-minutes: 60
     env:
       CI: 'true'
       DRIVERS: druid-jdbc
@@ -235,10 +213,9 @@ jobs:
         trunk-api-token: ${{ secrets.TRUNK_API_TOKEN }}
 
   be-tests-mysql-mariadb:
-    needs: files-changed
-    if: github.event.pull_request.draft == false && needs.files-changed.outputs.backend_all == 'true'
+    if: ${{ !inputs.skip }}
     runs-on: ubuntu-22.04
-    timeout-minutes: 90
+    timeout-minutes: 60
     strategy:
       fail-fast: false
       matrix:
@@ -272,21 +249,21 @@ jobs:
             build-static-viz: false
             test-args: >-
               :only '"enterprise/backend/test"'
-              :exclude-tags [:mb/driver-tests]
+            exclude-tag: ':mb/driver-tests'
           - name: EE App DB Tests (Part 1)
             build-static-viz: true
             test-args: >-
               :only '"test"'
-              :exclude-tags [:mb/driver-tests]
               :partition/total 2
               :partition/index 0
+            exclude-tag: ':mb/driver-tests'
           - name: EE App DB Tests (Part 2)
             build-static-viz: true
             test-args: >-
               :only '"test"'
-              :exclude-tags [:mb/driver-tests]
               :partition/total 2
               :partition/index 1
+            exclude-tag: ':mb/driver-tests'
 
     services:
       mysql:
@@ -297,6 +274,22 @@ jobs:
           MYSQL_ALLOW_EMPTY_PASSWORD: true
           MYSQL_DATABASE: circle_test
     env:
+      # Only run old migrations tests on pushes to master or release branches. All other branches should skip tests
+      # with the tag `mb/old-migrations-test`. `__ADDITIONAL_EXCLUDED_TAG__` is not used anywhere outside of splicing
+      # it in to the command below.
+      __ADDITIONAL_EXCLUDED_TAG__: >-
+        ${{
+          (
+            github.event_name == 'push' &&
+            (
+              github.ref == 'master' ||
+              startsWith(github.ref, 'release-')
+            ) &&
+            ''
+          ) ||
+          ':mb/old-migrations-test'
+        }}
+      # actual serious env vars below
       CI: 'true'
       DRIVERS: mysql
       MB_DB_TYPE: mysql
@@ -332,6 +325,7 @@ jobs:
           junit-name: ${{ matrix.version.junit-name }}
           test-args: >-
             ${{ matrix.job.test-args }}
+            :exclude-tags '[ ${{ matrix.job.exclude-tag }} ${{ env.__ADDITIONAL_EXCLUDED_TAG__ }}]'
       - name: Upload Test Results
         uses: ./.github/actions/upload-test-results
         if: always()
@@ -345,10 +339,9 @@ jobs:
           trunk-api-token: ${{ secrets.TRUNK_API_TOKEN }}
 
   be-tests-mongo:
-    needs: files-changed
-    if: github.event.pull_request.draft == false && needs.files-changed.outputs.backend_all == 'true'
+    if: ${{ !inputs.skip }}
     runs-on: ubuntu-22.04
-    timeout-minutes: 90
+    timeout-minutes: 60
     strategy:
       fail-fast: false
       matrix:
@@ -361,7 +354,7 @@ jobs:
             image: metabase/qa-databases:mongo-sample-5.0
           - name: MongoDB Latest
             junit-name: be-tests-mongo-latest-ee
-            image: circleci/mongo:latest
+            image: mongo:latest
     env:
       CI: 'true'
       DRIVERS: mongo
@@ -398,10 +391,9 @@ jobs:
         trunk-api-token: ${{ secrets.TRUNK_API_TOKEN }}
 
   be-tests-mongo-ssl:
-    needs: files-changed
-    if: github.event.pull_request.draft == false && needs.files-changed.outputs.backend_all == 'true'
+    if: ${{ !inputs.skip }}
     runs-on: ubuntu-22.04
-    timeout-minutes: 90
+    timeout-minutes: 60
     strategy:
       fail-fast: false
       matrix:
@@ -466,10 +458,9 @@ jobs:
           trunk-api-token: ${{ secrets.TRUNK_API_TOKEN }}
 
   be-tests-mongo-sharded-cluster-ee:
-    needs: files-changed
-    if: github.event.pull_request.draft == false && needs.files-changed.outputs.backend_all == 'true'
+    if: ${{ !inputs.skip }}
     runs-on: ubuntu-22.04
-    timeout-minutes: 90
+    timeout-minutes: 60
     env:
       CI: 'true'
       DRIVERS: mongo
@@ -500,10 +491,9 @@ jobs:
         trunk-api-token: ${{ secrets.TRUNK_API_TOKEN }}
 
   be-tests-oracle:
-    needs: files-changed
-    if: github.event.pull_request.draft == false && needs.files-changed.outputs.backend_all == 'true'
+    if: ${{ !inputs.skip }}
     runs-on: ubuntu-22.04
-    timeout-minutes: 90
+    timeout-minutes: 60
     strategy:
       fail-fast: false
       matrix:
@@ -572,10 +562,9 @@ jobs:
         trunk-api-token: ${{ secrets.TRUNK_API_TOKEN }}
 
   be-tests-postgres:
-    needs: files-changed
-    if: github.event.pull_request.draft == false && needs.files-changed.outputs.backend_all == 'true'
+    if: ${{ !inputs.skip }}
     runs-on: ubuntu-22.04
-    timeout-minutes: 90
+    timeout-minutes: 60
     strategy:
       fail-fast: false
       matrix:
@@ -599,7 +588,7 @@ jobs:
             build-static-viz: false
             test-args: >-
               :only '"enterprise/backend/test"'
-              :exclude-tags [:mb/driver-tests]
+            exclude-tag: ':mb/driver-tests'
           - name: EE App DB Tests (Part 1)
             build-static-viz: true
             test-args: >-
@@ -607,15 +596,32 @@ jobs:
               :exclude-tags [:mb/driver-tests]
               :partition/total 2
               :partition/index 0
+            exclude-tag: ':mb/driver-tests'
           - name: EE App DB Tests (Part 2)
             build-static-viz: true
             test-args: >-
-              only '"test"'
-              :exclude-tags [:mb/driver-tests]
+              :only '"test"'
               :partition/total 2
               :partition/index 1
+            exclude-tag: ':mb/driver-tests'
     name: "${{ matrix.version.name }} ${{ matrix.job.name }}"
     env:
+      # Only run old migrations tests on pushes to master or release branches. All other branches should skip tests
+      # with the tag `mb/old-migrations-test`. `__ADDITIONAL_EXCLUDED_TAG__` is not used anywhere outside of splicing
+      # it in to the command below.
+      __ADDITIONAL_EXCLUDED_TAG__: >-
+        ${{
+          (
+            github.event_name == 'push' &&
+            (
+              github.ref == 'master' ||
+              startsWith(github.ref, 'release-')
+            ) &&
+            ''
+          ) ||
+          ':mb/old-migrations-test'
+        }}
+      # actual serious env vars below
       CI: 'true'
       DRIVERS: postgres
       MB_DB_TYPE: postgres
@@ -646,6 +652,7 @@ jobs:
           junit-name: 'be-tests-${{ matrix.version.junit-name }}'
           test-args: >-
             ${{ matrix.job.test-args }}
+            :exclude-tags '[ ${{ matrix.job.exclude-tag }} ${{ env.__ADDITIONAL_EXCLUDED_TAG__ }}]'
       - name: Upload Test Results
         uses: ./.github/actions/upload-test-results
         if: always()
@@ -659,10 +666,9 @@ jobs:
           trunk-api-token: ${{ secrets.TRUNK_API_TOKEN }}
 
   be-tests-presto-jdbc-ee:
-    needs: files-changed
-    if: github.event.pull_request.draft == false && needs.files-changed.outputs.backend_all == 'true'
+    if: ${{ !inputs.skip }}
     runs-on: ubuntu-22.04
-    timeout-minutes: 90
+    timeout-minutes: 60
     env:
       CI: 'true'
       DRIVERS: presto-jdbc
@@ -728,10 +734,25 @@ jobs:
         trunk-api-token: ${{ secrets.TRUNK_API_TOKEN }}
 
   be-tests-redshift-ee:
-    needs: files-changed
-    if: github.event.pull_request.draft == false && needs.files-changed.outputs.backend_all == 'true'
+    if: ${{ !inputs.skip }}
     runs-on: ubuntu-22.04
-    timeout-minutes: 90
+    timeout-minutes: 60
+    strategy:
+      fail-fast: false
+      matrix:
+        job:
+          - name: Redshift Upload Tests
+            skip: ${{ github.event_name == 'pull_request' }} # FIXME: temporary to alleviate pressure on redshift instances
+            test-args: >-
+              :only-tags [:mb/upload-tests]
+              :fail-fast? true
+          - name: Redshift (Excluding Upload Tests)
+            skip: false
+            test-args: >-
+              :only-tags [:mb/driver-tests]
+              :exclude-tags [:mb/upload-tests]
+              :fail-fast? true
+
     env:
       CI: 'true'
       DRIVERS: redshift
@@ -739,18 +760,19 @@ jobs:
       MB_REDSHIFT_TEST_DB: testdb
       MB_REDSHIFT_TEST_HOST: ${{ secrets.MB_REDSHIFT_TEST_HOST }}
       MB_REDSHIFT_TEST_PASSWORD: ${{ secrets.MB_REDSHIFT_TEST_PASSWORD }}
-    name: Redshift
+    name: ${{ matrix.job.name }}
     steps:
     - uses: actions/checkout@v4
-    - name: Test Redshift driver
+    - name: Test ${{ matrix.job.name }}
+      if: ${{ !matrix.job.skip }}
       uses: ./.github/actions/test-driver
       with:
         junit-name: 'be-tests-redshift-ee'
         test-args: >-
-          :only-tags [:mb/driver-tests]
+          ${{ matrix.job.test-args }}
     - name: Upload Test Results
       uses: ./.github/actions/upload-test-results
-      if: always()
+      if: ${{ !matrix.job.skip && !cancelled() }}
       with:
         input-path: ./target/junit/
         output-name: ${{ github.job }}
@@ -761,10 +783,9 @@ jobs:
         trunk-api-token: ${{ secrets.TRUNK_API_TOKEN }}
 
   be-tests-snowflake-ee:
-    needs: files-changed
-    if: github.event.pull_request.draft == false && needs.files-changed.outputs.backend_all == 'true'
+    if: ${{ !inputs.skip }}
     runs-on: ubuntu-22.04
-    timeout-minutes: 90
+    timeout-minutes: 60
     env:
       CI: 'true'
       DRIVERS: snowflake
@@ -801,10 +822,9 @@ jobs:
         trunk-api-token: ${{ secrets.TRUNK_API_TOKEN }}
 
   be-tests-sparksql-ee:
-    needs: files-changed
-    if: github.event.pull_request.draft == false && needs.files-changed.outputs.backend_all == 'true'
+    if: ${{ !inputs.skip }}
     runs-on: ubuntu-22.04
-    timeout-minutes: 90
+    timeout-minutes: 60
     env:
       CI: 'true'
       DRIVERS: sparksql
@@ -835,10 +855,9 @@ jobs:
         trunk-api-token: ${{ secrets.TRUNK_API_TOKEN }}
 
   be-tests-sqlite-ee:
-    needs: files-changed
-    if: github.event.pull_request.draft == false && needs.files-changed.outputs.backend_all == 'true'
+    if: ${{ !inputs.skip }}
     runs-on: ubuntu-22.04
-    timeout-minutes: 90
+    timeout-minutes: 60
     env:
       CI: 'true'
       DRIVERS: sqlite
@@ -864,10 +883,9 @@ jobs:
         trunk-api-token: ${{ secrets.TRUNK_API_TOKEN }}
 
   be-tests-sqlserver:
-    needs: files-changed
-    if: github.event.pull_request.draft == false && needs.files-changed.outputs.backend_all == 'true'
+    if: ${{ !inputs.skip }}
     runs-on: ubuntu-20.04
-    timeout-minutes: 90
+    timeout-minutes: 30
     strategy:
       fail-fast: false
       matrix:
@@ -915,10 +933,9 @@ jobs:
         trunk-api-token: ${{ secrets.TRUNK_API_TOKEN }}
 
   be-tests-vertica-ee:
-    needs: files-changed
-    if: github.event.pull_request.draft == false && needs.files-changed.outputs.backend_all == 'true'
+    if: ${{ !inputs.skip }}
     runs-on: ubuntu-22.04
-    timeout-minutes: 90
+    timeout-minutes: 60
     env:
       CI: 'true'
       DRIVERS: vertica

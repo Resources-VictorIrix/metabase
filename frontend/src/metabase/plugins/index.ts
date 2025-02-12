@@ -5,6 +5,7 @@ import type {
   ReactNode,
   SetStateAction,
 } from "react";
+import type React from "react";
 import { t } from "ttag";
 import _ from "underscore";
 import type { AnySchema } from "yup";
@@ -37,7 +38,7 @@ import type { LinkProps } from "metabase/core/components/Link";
 import { getIconBase } from "metabase/lib/icon";
 import PluginPlaceholder from "metabase/plugins/components/PluginPlaceholder";
 import type { SearchFilterComponent } from "metabase/search/types";
-import type { GroupProps, IconName, IconProps } from "metabase/ui";
+import type { IconName, IconProps, StackProps } from "metabase/ui";
 import type Question from "metabase-lib/v1/Question";
 import type Database from "metabase-lib/v1/metadata/Database";
 import type {
@@ -278,18 +279,6 @@ const AUTHORITY_LEVEL_REGULAR: CollectionAuthorityLevelConfig = {
   icon: "folder",
 };
 
-type AuthorityLevelMenuItem = {
-  title: string;
-  icon: string;
-  action: () => void;
-};
-
-type CleanUpMenuItem = {
-  title: string;
-  icon: string;
-  link: string;
-};
-
 export type ItemWithCollection = { collection: CollectionEssentials };
 
 type GetCollectionIdType = (
@@ -319,16 +308,18 @@ export const PLUGIN_COLLECTIONS = {
   getAuthorityLevelMenuItems: (
     _collection: Collection,
     _onUpdate: (collection: Collection, values: Partial<Collection>) => void,
-  ): AuthorityLevelMenuItem[] => [],
+  ): React.ReactNode[] => [],
   getIcon: getIconBase,
   filterOutItemsFromInstanceAnalytics: <Item extends ItemWithCollection>(
     items: Item[],
   ) => items as Item[],
   canCleanUp: (_collection: Collection) => false as boolean,
-  getCleanUpMenuItems: (
+  useGetCleanUpMenuItems: (
     _collection: Collection,
-    _itemCount: number,
-  ): CleanUpMenuItem[] => [],
+  ): { menuItems: JSX.Element[]; showIndicator: boolean } => ({
+    menuItems: [],
+    showIndicator: false,
+  }),
   cleanUpRoute: null as React.ReactElement | null,
   cleanUpAlert: (() => null) as (props: {
     collection: Collection;
@@ -407,7 +398,11 @@ export type SidebarCacheFormProps = {
   item: CacheableDashboard | Question;
   model: CacheableModel;
   onClose: () => void;
-} & GroupProps;
+} & StackProps;
+
+export type PreemptiveCachingSwitchProps = {
+  handleSwitchToggle: () => void;
+};
 
 export const PLUGIN_CACHING = {
   isGranularCachingEnabled: () => false,
@@ -427,6 +422,8 @@ export const PLUGIN_CACHING = {
   DashboardAndQuestionCachingTab: PluginPlaceholder as any,
   StrategyEditorForQuestionsAndDashboards: PluginPlaceholder as any,
   getTabMetadata: getPerformanceTabMetadata,
+  PreemptiveCachingSwitch:
+    PluginPlaceholder as ComponentType<PreemptiveCachingSwitchProps>,
 };
 
 export const PLUGIN_REDUCERS: {

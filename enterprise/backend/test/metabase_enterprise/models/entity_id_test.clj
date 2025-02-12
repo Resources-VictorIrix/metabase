@@ -1,4 +1,4 @@
-(ns ^:mb/once metabase-enterprise.models.entity-id-test
+(ns metabase-enterprise.models.entity-id-test
   "To support serialization, all exported entities should have either an external name (eg. a database path) or a
   generated NanoID in a column called entity_id. There's a property :entity_id to automatically populate that field.
 
@@ -9,12 +9,9 @@
    [metabase-enterprise.serialization.v2.backfill-ids :as serdes.backfill]
    [metabase-enterprise.serialization.v2.entity-ids :as v2.entity-ids]
    [metabase-enterprise.serialization.v2.models :as serdes.models]
-   [metabase.models.revision-test]
    [metabase.models.serialization :as serdes]))
 
 (set! *warn-on-reflection* true)
-
-(comment metabase.models.revision-test/keep-me)
 
 (def ^:private entities-external-name
   "Entities with external names, so they don't need a generated entity_id."

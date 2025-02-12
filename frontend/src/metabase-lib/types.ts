@@ -384,17 +384,20 @@ export type StringFilterOptions = {
   caseSensitive?: boolean;
 };
 
+// string is used when the value cannot be accurately represented as a JS number
+export type NumberFilterValue = number | string;
+
 export type NumberFilterParts = {
   operator: NumberFilterOperator;
   column: ColumnMetadata;
-  values: number[];
+  values: NumberFilterValue[];
 };
 
 export type CoordinateFilterParts = {
   operator: CoordinateFilterOperator;
   column: ColumnMetadata;
   longitudeColumn: ColumnMetadata | null;
-  values: number[];
+  values: NumberFilterValue[];
 };
 
 export type BooleanFilterParts = {
@@ -597,6 +600,11 @@ export type FilterDrillDetails = {
 };
 
 export type PivotType = "category" | "location" | "time";
+
+export type PivotDrillDetails = {
+  pivotTypes: PivotType[];
+  stageIndex: number;
+};
 
 export interface ClickObjectDimension {
   value: RowValue;

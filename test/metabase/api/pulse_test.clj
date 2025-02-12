@@ -1,25 +1,27 @@
-(ns metabase.api.pulse-test
+(ns ^:mb/driver-tests metabase.api.pulse-test
   "Tests for /api/pulse endpoints."
-  #_{:clj-kondo/ignore [:deprecated-namespace]}
   (:require
    [clojure.string :as str]
    [clojure.test :refer :all]
    [java-time.api :as t]
    [metabase.api.card-test :as api.card-test]
-   [metabase.api.channel-test :as api.channel-test]
+   ^{:clj-kondo/ignore [:deprecated-namespace]}
    [metabase.api.pulse :as api.pulse]
+   [metabase.channel.api.channel-test :as api.channel-test]
    [metabase.channel.impl.http-test :as channel.http-test]
    [metabase.channel.render.style :as style]
+   [metabase.driver :as driver]
    [metabase.http-client :as client]
    [metabase.integrations.slack :as slack]
-   [metabase.models.permissions :as perms]
-   [metabase.models.permissions-group :as perms-group]
    [metabase.models.pulse-channel :as pulse-channel]
    [metabase.models.pulse-test :as pulse-test]
    [metabase.notification.test-util :as notification.tu]
+   [metabase.permissions.models.permissions :as perms]
+   [metabase.permissions.models.permissions-group :as perms-group]
    [metabase.pulse.test-util :as pulse.test-util]
    [metabase.request.core :as request]
    [metabase.test :as mt]
+   [metabase.test.data.interface :as tx]
    [metabase.test.mock.util :refer [pulse-channel-defaults]]
    [metabase.util :as u]
    [toucan2.core :as t2]))
@@ -113,7 +115,7 @@
   (doseq [[input expected-error]
           {{}
            {:errors {:name "value must be a non-blank string."}
-            :specific-errors {:name ["should be a string, received: nil" "non-blank string, received: nil"]}}
+            :specific-errors {:name ["missing required key, received: nil"]}}
 
            {:name "abc"}
            default-post-card-ref-validation-error
@@ -1106,6 +1108,31 @@
                   :subject "Daily Sad Toucans"
                   :recipient-type nil}
                  (mt/summarize-multipart-single-email (-> channel-messages :channel/email first) #"Daily Sad Toucans"))))))))
+
+(deftest array-query-can-be-emailed-test
+  (mt/test-drivers (mt/normal-drivers-with-feature :test/arrays)
+    (mt/with-temp [:model/Card {card-id :id} {:dataset_query (mt/native-query {:query (tx/native-array-query driver/*driver*)})}
+                   :model/Dashboard {dashboard-id :id} {:name "Venues by Category"}
+                   :model/DashboardCard _ {:card_id      card-id
+                                           :dashboard_id dashboard-id}]
+      (mt/with-fake-inbox
+        (let [channel-messages (pulse.test-util/with-captured-channel-send-messages!
+                                 (is (= {:ok true}
+                                        (mt/user-http-request :rasta :post 200 "pulse/test"
+                                                              {:name          (mt/random-name)
+                                                               :dashboard_id  dashboard-id
+                                                               :cards         [{:id                card-id
+                                                                                :include_csv       false
+                                                                                :include_xls       false}]
+                                                               :channels      [{:channel_type  "email"
+                                                                                :recipients    [(mt/fetch-user :rasta)]}]}))))]
+          (is (= {:message [{"Venues by Category" true}
+                            pulse.test-util/png-attachment]
+                  :message-type :attachments,
+                  :recipients #{"rasta@metabase.com"}
+                  :subject "Venues by Category"
+                  :recipient-type nil}
+                 (mt/summarize-multipart-single-email (-> channel-messages :channel/email first) #"Venues by Category"))))))))
 
 (deftest ^:parallel pulse-card-query-results-test
   (testing "viz-settings saved in the DB for a Card should be loaded"

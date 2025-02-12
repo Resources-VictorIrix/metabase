@@ -52,6 +52,14 @@
      :depends-on-namespace (:namespace ns-dep)
      :depends-on-module    (:module ns-dep)}))
 
+(defn external-usages-by-namespace
+  "Return a map of module namespace => set of external namespaces using it"
+  [module-symb]
+  (into (sorted-map)
+        (map (fn [[k v]]
+               [k (into (sorted-set) (map :namespace) v)]))
+        (group-by :depends-on-namespace (external-usages module-symb))))
+
 (defn externally-used-namespaces
   "All namespaces from a module that are used outside that module."
   [module-symb]
@@ -119,3 +127,24 @@
                                (conj (or deps (sorted-set)) module-y-ns))))
      (sorted-map)
      module-x-ns->module-y-ns)))
+
+(defn full-dependencies
+  "Like [[dependencies]] but also includes transient dependencies."
+  []
+  (let [deps-graph  (module-dependencies)
+        expand-deps (fn expand-deps [deps]
+                      (let [deps' (into (sorted-set)
+                                        (mapcat deps-graph)
+                                        deps)]
+                        (if (= deps deps')
+                          deps
+                          (expand-deps deps'))))]
+    (into (sorted-map)
+          (map (fn [[k v]]
+                 [k (expand-deps v)]))
+          deps-graph)))
+
+(defn module-dependencies-mermaid []
+  (doseq [[module deps] (module-dependencies)
+          dep deps]
+    (printf "%s-->%s\n" module dep)))

@@ -26,7 +26,7 @@
    [metabase.public-settings :as public-settings]
    [metabase.sample-data :as sample-data]
    [metabase.server.core :as server]
-   [metabase.setup :as setup]
+   [metabase.setup.core :as setup]
    [metabase.task :as task]
    [metabase.util :as u]
    [metabase.util.log :as log]
@@ -165,7 +165,7 @@
    ;; start scheduler at end of init!
   (task/start-scheduler!)
    ;; In case we could not do this earlier (e.g. for DBs added via config file), because the scheduler was not up yet:
-  (database/check-and-schedule-tasks!)
+  (database/check-health-and-schedule-tasks!)
   (init-status/set-complete!)
   (let [start-time (.getStartTime (ManagementFactory/getRuntimeMXBean))
         duration   (- (System/currentTimeMillis) start-time)]

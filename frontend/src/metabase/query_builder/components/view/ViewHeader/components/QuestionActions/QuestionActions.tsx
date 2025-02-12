@@ -12,14 +12,12 @@ import { useDispatch } from "metabase/lib/redux";
 import { QuestionMoreActionsMenu } from "metabase/query_builder/components/view/ViewHeader/components/QuestionActions/QuestionMoreActionsMenu";
 import type { QueryModalType } from "metabase/query_builder/constants";
 import { uploadFile } from "metabase/redux/uploads";
-import { Box, Icon, Menu } from "metabase/ui";
+import { Box, Divider, Icon, Menu } from "metabase/ui";
 import type Question from "metabase-lib/v1/Question";
 import type { DatasetEditorTab, QueryBuilderMode } from "metabase-types/store";
 import { UploadMode } from "metabase-types/store/upload";
 
 import ViewTitleHeaderS from "../../ViewTitleHeader.module.css";
-
-import QuestionActionsS from "./QuestionActions.module.css";
 
 const HEADER_ICON_SIZE = 16;
 
@@ -92,7 +90,7 @@ export const QuestionActions = ({
 
   return (
     <>
-      <Box className={QuestionActionsS.QuestionActionsDivider} />
+      <Divider orientation="vertical" my="xs" />
       {!question.isArchived() && (
         <Box className={ViewTitleHeaderS.ViewHeaderIconButtonContainer}>
           <BookmarkToggle
@@ -138,14 +136,14 @@ export const QuestionActions = ({
                 </Menu.Target>
                 <Menu.Dropdown>
                   <Menu.Item
-                    icon={<Icon name="add" />}
+                    leftSection={<Icon name="add" />}
                     onClick={() => handleUploadClick(UploadMode.append)}
                   >
                     {t`Append data to this model`}
                   </Menu.Item>
 
                   <Menu.Item
-                    icon={<Icon name="refresh" />}
+                    leftSection={<Icon name="refresh" />}
                     onClick={() => handleUploadClick(UploadMode.replace)}
                   >
                     {t`Replace all data in this model`}

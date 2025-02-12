@@ -6,7 +6,9 @@
    [clojure.test :refer :all]
    [honey.sql :as sql]
    [malli.core :as mc]
+   [medley.core :as m]
    [metabase.actions.error :as actions.error]
+   [metabase.actions.models :as action]
    [metabase.config :as config]
    [metabase.db.metadata-queries :as metadata-queries]
    [metabase.driver :as driver]
@@ -21,15 +23,17 @@
    [metabase.driver.sql-jdbc.sync.describe-database :as sql-jdbc.describe-database]
    [metabase.driver.sql.query-processor :as sql.qp]
    [metabase.driver.sql.query-processor-test-util :as sql.qp-test-util]
+   [metabase.lib.core :as lib]
+   [metabase.lib.metadata :as lib.metadata]
+   [metabase.lib.metadata.jvm :as lib.metadata.jvm]
    [metabase.lib.test-metadata :as meta]
    [metabase.lib.test-util :as lib.tu]
    [metabase.lib.test-util.metadata-providers.mock :as providers.mock]
-   [metabase.models.action :as action]
    [metabase.models.secret :as secret]
    [metabase.query-processor :as qp]
    [metabase.query-processor.compile :as qp.compile]
    [metabase.query-processor.store :as qp.store]
-   [metabase.sync :as sync]
+   [metabase.sync.core :as sync]
    [metabase.sync.sync-metadata :as sync-metadata]
    [metabase.sync.sync-metadata.tables :as sync-tables]
    [metabase.sync.util :as sync-util]
@@ -1019,7 +1023,55 @@
                                                             "other_status" "sad bird"
                                                             "type"         "turkey"}}))))))))))))
 
-;; API tests are in [[metabase.api.action-test]]
+(deftest filtering-on-enum-from-source-test
+  (mt/test-driver
+    :postgres
+    (do-with-enums-db!
+     (fn [enums-db]
+       (mt/with-db enums-db
+         (let [query {:database (mt/id)
+                      :type :native
+                      :native {:query "select * from birds"
+                               :parameters []}}]
+           (testing "results_metadata columns are correctly typed"
+             (is (=? [{:name "name"}
+                      {:name "status"
+                       :base_type :type/PostgresEnum
+                       :effective_type :type/PostgresEnum
+                       :database_type "bird_status"}
+                      {:name "other_status"
+                       :base_type :type/PostgresEnum
+                       :effective_type :type/PostgresEnum
+                       :database_type "\"bird_schema\".\"bird_status\""}
+                      {:name "type"
+                       :base_type :type/PostgresEnum
+                       :effective_type :type/PostgresEnum
+                       :database_type "bird type"}]
+                     (-> (qp/process-query query) :data :results_metadata :columns)))
+             (doseq [card-type [:question :model]]
+               (mt/with-temp
+                 [:model/Card
+                  {id :id}
+                  (assoc {:dataset_query query
+                          :result_metadata (-> (qp/process-query query) :data :results_metadata :columns)
+                          :type :model}
+                         :type card-type)]
+                 (let [mp (lib.metadata.jvm/application-database-metadata-provider (mt/id))
+                       query (as-> (lib/query mp (lib.metadata/card mp id)) $
+                               (lib/filter $ (lib/= (m/find-first (comp #{"status"} :name)
+                                                                  (lib/filterable-columns $))
+                                                    "good bird"))
+                               (lib/filter $ (lib/= (m/find-first (comp #{"other_status"} :name)
+                                                                  (lib/filterable-columns $))
+                                                    "sad bird"))
+                               (lib/filter $ (lib/= (m/find-first (comp #{"type"} :name)
+                                                                  (lib/filterable-columns $))
+                                                    "toucan")))]
+                   (testing (format "Filtering on enums in `%s` based query works as expected (#27680)" card-type)
+                     (is (=? {:data {:rows [["Rasta" "good bird" "sad bird" "toucan"]]}}
+                             (qp/process-query query))))))))))))))
+
+;; API tests are in [[metabase.actions.api-test]]
 (deftest ^:parallel actions-maybe-parse-sql-violate-not-null-constraint-test
   (testing "violate not null constraint"
     (is (= {:type :metabase.actions.error/violate-not-null-constraint,
@@ -1602,3 +1654,28 @@
                               :target [:variable [:template-tag "date"]]
                               :value  "2024-07-02"}]
                 :middleware {:format-rows? false}})))))))
+
+(deftest ^:parallel xml-column-is-readable-test
+  (mt/test-driver :postgres
+    (let [xml-str "<abc>abc</abc>"]
+      (is (= [[xml-str]]
+             (mt/rows
+              (qp/process-query
+               {:database (mt/id)
+                :type :native
+                :native {:query (format "SELECT '%s'::xml" xml-str)}})))))))
+
+(deftest ^:parallel aggregated-array-is-returned-correctly-test
+  (testing "An aggregated array column should be returned in a readable format"
+    (mt/test-driver :postgres
+      (mt/dataset test-data
+        (is (= [["The Gorbals" "The Misfit Restaurant + Bar" "Marlowe" "Yamashiro Hollywood" "Musso & Frank Grill" "Pacific Dining Car" "Chez Jay" "Rush Street"]
+                ["Greenblatt's Delicatessen & Fine Wine Shop" "Handy Market"]]
+               (->> (mt/native-query {:query "select category_id, array_agg(name)
+                                              from venues
+                                              group by category_id
+                                              order by 1 asc
+                                              limit 2;"})
+                    mt/process-query
+                    mt/rows
+                    (map second))))))))

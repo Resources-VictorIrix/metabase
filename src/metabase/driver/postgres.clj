@@ -840,6 +840,17 @@
    (keyword "timestamp with time zone")    :type/DateTimeWithLocalTZ
    (keyword "timestamp without time zone") :type/DateTime})
 
+(defmethod driver/dynamic-database-types-lookup :postgres
+  [_driver database database-types]
+  (when (seq database-types)
+    (let [ts (enum-types database)]
+      (not-empty
+       (into {}
+             (comp
+              (filter ts)
+              (map #(vector % :type/PostgresEnum)))
+             database-types)))))
+
 (defmethod sql-jdbc.sync/database-type->base-type :postgres
   [_driver database-type]
   (default-base-types database-type))
@@ -946,14 +957,23 @@
     (fn []
       (.getObject rs i))))
 
+(defmethod sql-jdbc.execute/read-column-thunk [:postgres Types/SQLXML]
+  [_driver ^ResultSet rs ^ResultSetMetaData _rsmeta ^Integer i]
+  (fn [] (.getString rs i)))
+
 ;; de-CLOB any CLOB values that come back
 (defmethod sql-jdbc.execute/read-column-thunk :postgres
   [_ ^ResultSet rs _ ^Integer i]
   (fn []
     (let [obj (.getObject rs i)]
-      (if (instance? org.postgresql.util.PGobject obj)
-        (.getValue ^org.postgresql.util.PGobject obj)
-        obj))))
+      (cond (instance? org.postgresql.util.PGobject obj)
+            (.getValue ^org.postgresql.util.PGobject obj)
+
+            (instance? org.postgresql.jdbc.PgArray obj)
+            (vec (.getArray ^org.postgresql.jdbc.PgArray obj)) ;; TODO -- we should probably be careful of very large arrays
+
+            :else
+            obj))))
 
 ;; Postgres doesn't support OffsetTime
 (defmethod sql-jdbc.execute/set-parameter [:postgres OffsetTime]
